@@ -36,7 +36,7 @@ var upload = multer({
 });
 
 // Email pass signup
-router.post("/signup",upload.single("images"), async (req, res) => {
+router.post("/signup", upload.single("images"), async (req, res) => {
   try {
     const {
       firstName,
@@ -44,9 +44,9 @@ router.post("/signup",upload.single("images"), async (req, res) => {
       email,
       password,
       age,
-      address, 
-      city, 
-      postalCode
+      address,
+      city,
+      postalCode,
     } = req.body;
     const filenames = req.file.filename;
     // Check if required fields are present
@@ -70,10 +70,10 @@ router.post("/signup",upload.single("images"), async (req, res) => {
       firstName,
       lastName,
       email,
-      password:hashedPassword,
+      password: hashedPassword,
       user_image: filenames,
       age,
-      location: { address, city, postalCode }
+      location: { address, city, postalCode },
     };
     const data = await userCollection.insertOne(newUser);
     // console.log(newUser)
@@ -97,7 +97,7 @@ router.get("/verifyToken", verifyToken, (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-      console.log(email, password);
+    console.log(email, password);
     // Input validation:
     if (!email || !password) {
       throw new Error("Both email and password are required.");
@@ -113,11 +113,9 @@ router.post("/login", async (req, res) => {
       return; // Prevent duplicate error message in case both conditions are met
     }
 
-    const token = jwt.sign(
-      { user },
-      "12345fhhhfkjhfnnvjfjjfjjfjfjjfjf",
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign({ user }, "12345fhhhfkjhfnnvjfjjfjjfjfjjfjf", {
+      expiresIn: "7d",
+    });
 
     // console.log(token);
 
@@ -216,7 +214,7 @@ router.post("/forgot-password/:email", async (req, res) => {
 router.post("/reset-password/:id/:token", async (req, res) => {
   const { id, token } = req.params;
   const { password } = req.body;
- console.log(password);
+  console.log(password);
   try {
     // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -247,18 +245,39 @@ router.post("/reset-password/:id/:token", async (req, res) => {
 });
 // handle google login and signup
 router.post("/user", async (req, res) => {
-  const user = req.body;
-  // console.log(user);
-  const query = { email: user.email };
+  const { firstName, lastName, email, user_image } = req.body;
+  const query = { email: email };
+
   const existingUser = await userCollection.findOne(query);
+  if (!existingUser) {
+      const userData = {
+        firstName: firstName,
+        lastName: lastName,
+        email,
+        password: "",
+        user_image,
+        age: "",
+        phone: "",
+        location: {
+          address: "",
+          city: "",
+          postalCode: "",
+        },
+      };
 
-  if (existingUser) {
-    return res.send({ message: "user is already exists" });
+      const insertedData = await userCollection.insertOne(userData);
   }
-  const result = await userCollection.insertOne(user);
-  res.send(result);
-});
 
+  const user = await userCollection.findOne(query);
+  const token = jwt.sign(
+    user,
+    "12345fhhhfkjhfnnvjfjjfjjfjfjjfjf",
+    {
+      expiresIn: "7d",
+    }
+  );
+  res.json({ auth: true, token, user: user });
+});
 router.get("/users", async (req, res) => {
   try {
     const { searchValue } = req.query;
@@ -267,10 +286,10 @@ router.get("/users", async (req, res) => {
     if (searchValue) {
       filter.$or = [
         { firstName: { $regex: new RegExp(`\\b${searchValue}\\b`, "i") } },
-        { lastName: { $regex: new RegExp(`\\b${searchValue}\\b`, "i") } }
+        { lastName: { $regex: new RegExp(`\\b${searchValue}\\b`, "i") } },
       ];
     }
-    
+
     const users = await userCollection.find(filter).toArray();
     res.json(users);
   } catch (error) {
@@ -287,139 +306,81 @@ router.get("/user/:email", async (req, res) => {
   }
 });
 
-//patch code 
-router.patch("/update/:email",upload.single('images'), async (req, res) => {
+router.patch("/update/:email", upload.single("images"), async (req, res) => {
   try {
     const email = req.params.email;
-    console.log(email);
-    
     const {
       firstName,
       lastName,
-      email: newEmail, 
+      age,
+      address,
+      city,
+      postalCode,
+      phone,
       password,
-      phone,
-      age,
-       address, city, postalCode 
-    } = req.body; 
-    console.log( firstName,
-      lastName,
-      email,
-      password,
-      phone,
-      age,
-       address, city, postalCode );
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const filenames = req.file.filename;
-    const updatedData = {
-      firstName,
-      lastName,
-      email,
-      password:hashedPassword,
-      user_image:filenames,
-      age,
-      phone,
-      location: { address, city, postalCode }
-    };
+      oldPass,
+      isUpdate,
+    } = req.body;
+    console.log("🚀 ~ router.patch ~ req.body:", req.body)
+    const filename = req.file ? req.file.filename : undefined;
+    const newPassword = password ? password : undefined;
 
-    // Update the user data in the database
-    const updatedUser = await userCollection.findOneAndUpdate(
-      { email }, 
-      { $set: updatedData }, 
-      { new: true } 
-    );
+    // Retrieve existing user data
+    const existingUser = await userCollection.findOne({ email });
 
-    if (!updatedUser) {
+    if (!existingUser) {
       return res.status(404).json({ error: "User not found." });
     }
 
-    res.status(200).json({ message: "User updated successfully", updatedUser });
-  } catch (error) {
-    console.error("Error updating user:", error);
-    res.status(500).json({ error: "Internal server error." });
-  }
-});
-router.patch("/update/:email", async (req, res) => {
-  try {
-    const email = req.params.email;
-    console.log(email);
-    const {
+    const userToUpdate = {
       firstName,
       lastName,
-      email: newEmail, 
-      password,
-      user_image,
       age,
       phone,
-     address, city, postalCode 
-    } = req.body; 
-
-    console.log(firstName,
-      lastName,
-      newEmail, 
-      password,
-      user_image,
-      age,
-      phone,
-     address, city, postalCode );
-
-    const updatedData = {
-      firstName,
-      lastName,
-      email: newEmail, 
-      password,
-      user_image,
-      phone,
-      age,
-      location: { address, city, postalCode }
+      location: { address, city, postalCode },
     };
 
-    // Update the user data in the database
-    const updatedUser = await userCollection.findOneAndUpdate(
-      { email }, // Filter object
-      { $set: updatedData }, // Update object
-      { new: true } // Options: Return the updated document
+    if (isUpdate == "False" && newPassword) {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      userToUpdate.password = hashedPassword;
+    } else if (isUpdate == "True") {
+      userToUpdate.password = oldPass;
+    }
+    const paths = "http://localhost:5000/images/";
+    // Update fields provided in the request body
+    if (filename) userToUpdate.user_image = paths+filename;
+
+    console.log(userToUpdate);
+    // Update user data in the database
+    const result = await userCollection.updateOne(
+      { email },
+      { $set: userToUpdate }
+    );
+    const updatedUser = await userCollection.findOne({ email });
+    const token = jwt.sign(
+      { updatedUser },
+      "12345fhhhfkjhfnnvjfjjfjjfjfjjfjf",
+      {
+        expiresIn: "7d",
+      }
     );
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    res.status(200).json({ message: "User updated successfully", updatedUser });
+    res.json({ auth: true, token, user: updatedUser });
   } catch (error) {
     console.error("Error updating user:", error);
     res.status(500).json({ error: "Internal server error." });
   }
 });
 
-// Delete user by ID
-// router.delete("/delete/:id", async (req, res) => {
-//   try {
-//     const userId = req.params.id;
-// console.log(userId);
-//     const user = await userCollection.findOne({ _id: userId });
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found." });
-//     }
 
-//     // Delete the user
-//     const deletedUser = await userCollection.deleteOne({ _id: userId });
-//     if (deletedUser.deletedCount === 0) {
-//       throw new Error("Failed to delete user.");
-//     }
-
-//     res.status(200).json({ message: "User deleted successfully" });
-//   } catch (error) {
-//     console.error("Error deleting user:", error);
-//     res.status(500).json({ error: "Internal server error." });
-//   }
-// });
 router.delete("/delete/:id", async (req, res) => {
   try {
     const userId = req.params.id;
 
     // Delete the user
-    const deletedUser = await userCollection.deleteOne({ _id: new ObjectId( userId )});
+    const deletedUser = await userCollection.deleteOne({
+      _id: new ObjectId(userId),
+    });
 
     if (deletedUser.deletedCount === 0) {
       return res.status(404).json({ error: "User not found." });
