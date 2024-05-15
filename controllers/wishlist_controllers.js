@@ -14,11 +14,47 @@ router.get("/wishList", async (req, res) => {
   }
 });
 
+// router.post("/wishList", async (req, res) => {
+//   try {
+//     // Extract data from req.body
+//     const { userEmail, userId, flatWishList, roommateWishList } = req.body;
+//       console.log(userEmail, userId, flatWishList, roommateWishList);
+//     // Create a new wishlist document
+//     const newWishList = {
+//       userEmail,
+//       userId,
+//       flatWishList,
+//       roommateWishList,
+//     };
+
+//     // Insert the document into the collection
+//     await wishListCollection.insertOne(newWishList);
+
+//     res
+//       .status(201)
+//       .json({
+//         message: "Wishlist created successfully",
+//         wishlist: newWishList,
+//       });
+//   } catch (error) {
+//     console.error("Error creating wishlist:", error);
+//     res.status(500).json({ error: "Internal server error." });
+//   }
+// });
+
 router.post("/wishList", async (req, res) => {
   try {
     // Extract data from req.body
     const { userEmail, userId, flatWishList, roommateWishList } = req.body;
-      console.log(userEmail, userId, flatWishList, roommateWishList);
+    console.log(userEmail, userId, flatWishList, roommateWishList);
+
+    // Check if the wishlist already exists for the given userId
+    const existingWishList = await wishListCollection.findOne({ userId });
+
+    if (existingWishList) {
+      return res.status(409).json({ error: "Wishlist already exists for this user." });
+    }
+
     // Create a new wishlist document
     const newWishList = {
       userEmail,
@@ -30,19 +66,15 @@ router.post("/wishList", async (req, res) => {
     // Insert the document into the collection
     await wishListCollection.insertOne(newWishList);
 
-    res
-      .status(201)
-      .json({
-        message: "Wishlist created successfully",
-        wishlist: newWishList,
-      });
+    res.status(201).json({
+      message: "Wishlist created successfully",
+      wishlist: newWishList,
+    });
   } catch (error) {
     console.error("Error creating wishlist:", error);
     res.status(500).json({ error: "Internal server error." });
   }
 });
-
-
 router.delete('/wishlists/:id', async (req, res) => {
   try {
       const itemId = req.params.id;
